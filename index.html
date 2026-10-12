@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Stopky – závod</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#111;color:#eee;padding:10px;max-width:700px;margin:auto}
+#clock{font-size:18vw;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;margin:5px 0}
+@media(min-width:700px){#clock{font-size:120px}}
+button{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-size:18px;padding:12px;border:0;border-radius:10px;margin:3px;cursor:pointer}
+#start{background:#2a7;color:#fff;width:100%;font-size:26px}
+#cil{background:#d33;color:#fff;width:100%;font-size:56px;height:20vh;min-height:100px;margin-top:6px}
+#entry{position:sticky;top:0;background:#111;padding:4px 0;z-index:5}
+#clock{font-size:14vw}#nojs,#warnst{background:#a30;color:#fff;padding:10px;border-radius:8px;text-align:center}#warnst{display:none}
+#num{font-size:32px;width:100%;padding:10px;border-radius:10px;border:2px solid #555;background:#222;color:#fff;text-align:center}
+#msg{min-height:1.4em;color:#fc6;text-align:center;margin:6px 0}
+table{width:100%;border-collapse:collapse;margin-top:10px}td,th{padding:6px;border-bottom:1px solid #333;text-align:center}
+td input{width:80px;font-size:18px;background:#222;color:#fff;border:1px solid #555;text-align:center}
+tr.warn td{background:#532}.row{display:flex;flex-wrap:wrap;justify-content:center}
+textarea{width:100%;height:120px;display:none;font-size:14px}.sm{font-size:14px;color:#aaa;text-align:center}
+</style></head><body>
+<div id="nojs">Stránka se nenačetla správně. Zkus ji obnovit.</div>
+<div id="warnst">Prohlížeč nedovolil ukládání – časy se ztratí při zavření/obnovení stránky. Nezavírej ji, nebo otevři soubor jinak.</div>
+<div id="clock">0:00:00</div>
+<div class="sm" id="startinfo">Závod neběží</div>
+<button id="start">START</button>
+<div id="entry"><input id="num" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Startovní číslo (lze i později)" autocomplete="off">
+<button id="cil" type="button">CÍL</button>
+<div id="msg"></div></div>
+<div class="row">
+<button id="copy">Kopírovat pro Excel</button><button id="csv">Stáhnout CSV</button><button id="clear" style="background:#633;color:#fff">Vymazat vše</button>
+</div>
+<textarea id="ta" readonly></textarea>
+<table><thead><tr><th>Pořadí</th><th>Číslo</th><th>Čas</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+<script>
+function $(i){return document.getElementById(i)}
+document.getElementById('nojs').style.display='none';
+var KEY='stopky2026',MEM=null,STOK=true;
+function lsGet(){try{return window.localStorage.getItem(KEY)}catch(e){STOK=false;return MEM}}
+function lsSet(v){MEM=v;try{window.localStorage.setItem(KEY,v)}catch(e){STOK=false}}
+var S=load();
+function load(){try{var s=JSON.parse(lsGet());if(s&&s.rows)return s}catch(e){}return{start:null,rows:[]}}
+function save(){lsSet(JSON.stringify(S));if(!STOK)$('warnst').style.display='block'}
+function fmt(ms){var t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s}
+function digits(ms){var t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+(m<10?'0':'')+m:''+m)+(s<10?'0':'')+s}
+function msg(t){$('msg').textContent=t}
+function tick(){$('clock').textContent=S.start?fmt(Date.now()-S.start):'0:00:00'}
+setInterval(tick,200);
+var wl=null;function wake(){if(S.start&&navigator.wakeLock&&!wl){navigator.wakeLock.request('screen').then(function(l){wl=l;l.addEventListener('release',function(){wl=null})}).catch(function(){})}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')wake()});
+$('start').onclick=function(){if(S.start&&!confirm('Závod už běží. Opravdu spustit znovu od nuly? (zaznamenané časy zůstanou, ale budou počítané od starého startu)'))return;S.start=Date.now();save();render();wake();msg('Start!')};
+function record(){if(!S.start){if(confirm('Závod ještě neběží. Spustit START teď?')){S.start=Date.now();wake()}else{msg('Nejdřív zmáčkni START nahoře');return}}var el=Date.now()-S.start;var n=$('num').value.replace(/\D/g,'');
+// if no number typed, record time; number can be filled in later
+S.rows.push({n:n,t:el});save();$('num').value='';render();msg('Zapsáno '+(n?'č. '+n+' ':'(bez čísla) ')+fmt(el));try{$('num').focus()}catch(e){}flash()}
+function flash(){var c=$('cil');c.style.background='#f80';setTimeout(function(){c.style.background=''},150)}
+var lastP=0;$('num').addEventListener('focus',function(){setTimeout(function(){try{window.scrollTo(0,$('entry').offsetTop-4)}catch(e){}},300)});
+$('cil').addEventListener('pointerdown',function(e){e.preventDefault();lastP=Date.now();record()});
+$('cil').addEventListener('click',function(e){if(Date.now()-lastP<800)return;record()});
+$('num').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();record()}});
+function render(){$('startinfo').textContent=S.start?'Start: '+new Date(S.start).toLocaleTimeString('cs-CZ'):'Závod neběží';$('start').textContent=S.start?'START (znovu)':'START';
+var cnt={};S.rows.forEach(function(r){if(r.n)cnt[r.n]=(cnt[r.n]||0)+1});var tb=$('tb');tb.innerHTML='';var dup=0,miss=0;
+for(var i=S.rows.length-1;i>=0;i--){var r=S.rows[i],tr=document.createElement('tr');var bad=!r.n||cnt[r.n]>1;if(!r.n)miss++;else if(cnt[r.n]>1)dup++;if(bad)tr.className='warn';
+tr.innerHTML='<td>'+(i+1)+'.</td><td><input inputmode="numeric" data-i="'+i+'" value="'+r.n+'"></td><td>'+fmt(r.t)+(bad?'<br><small>'+(r.n?'duplicitní číslo':'chybí číslo')+'</small>':'')+'</td><td><button data-d="'+i+'" style="font-size:14px;padding:6px">✕</button></td>';tb.appendChild(tr)}
+if(dup||miss)msg((miss?'Bez čísla: '+miss+'. ':'')+(dup?'Duplicitní čísla: '+dup+' řádků.':''))}
+$('tb').addEventListener('change',function(e){var i=e.target.getAttribute('data-i');if(i!==null){S.rows[i].n=e.target.value.replace(/\D/g,'');save();render()}});
+$('tb').addEventListener('click',function(e){var i=e.target.getAttribute('data-d');if(i!==null&&confirm('Smazat '+(+i+1)+'. místo ('+fmt(S.rows[i].t)+')?')){S.rows.splice(i,1);save();render()}});
+function exportText(){return S.rows.map(function(r){return r.n+'\t'+digits(r.t)}).join('\n')}
+$('copy').onclick=function(){var t=exportText(),ta=$('ta');ta.value=t;ta.style.display='block';
+function fb(){ta.focus();ta.select();try{document.execCommand('copy');msg('Zkopírováno – vlož do listu Záznam času')}catch(e){msg('Označ text níže a zkopíruj ručně')}}
+if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(function(){msg('Zkopírováno – vlož do listu Záznam času (buňka Startovní číslo)')},fb);else fb()};
+$('csv').onclick=function(){var c='\ufeffPořadí;Startovní číslo;Čas;Čas (číslice)\n'+S.rows.map(function(r,i){return(i+1)+';'+r.n+';'+fmt(r.t)+';'+digits(r.t)}).join('\n');
+var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:'text/csv;charset=utf-8'}));a.download='vysledky_'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();a.remove()};
+$('clear').onclick=function(){if(confirm('Opravdu vymazat start i všechny časy?')&&confirm('Opravdu? Nejde to vrátit.')){S={start:null,rows:[]};save();render();$('ta').style.display='none';msg('Vymazáno')}};
+save();render();tick();wake();
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
+</script></body></html>
